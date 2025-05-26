@@ -746,33 +746,132 @@ def main():
         
         with col2:
             st.subheader("データ読み込み")
-            uploaded_file = st.file_uploader("板書データファイル", type=['json'])
+            
+            # 読み込みモードの選択
+            load_mode = st.radio(
+                "読み込みモード",
+                ["新規読み込み（現在のデータを置き換え）", "追加読み込み（現在のデータに追加）"],
+                help="新規読み込み：保存したデータで完全に置き換え\n追加読み込み：現在の作業に保存したデータを追加"
+            )
+            
+            uploaded_file = st.file_uploader("板書データファイル", type=['json'], key="load_data_file")
+            
             if uploaded_file is not None:
                 try:
+                    # ファイル内容をプレビュー
                     data = json.load(uploaded_file)
-                    st.session_state.actions = data['actions']
                     
-                    # 画像データがある場合は復元
-                    if 'images' in data:
-                        st.session_state.uploaded_images = data['images']
-                    else:
-                        # 古い形式との互換性のため、アクションから画像データを復元
-                        for action in st.session_state.actions:
-                            if action.get('type') == '貼る' and action.get('image_data'):
-                                image_id = action.get('image_id')
-                                if image_id:
-                                    st.session_state.uploaded_images[image_id] = {
-                                        'data': action['image_data'],
-                                        'type': action.get('image_type', 'image/png'),
-                                        'name': action.get('image_name', 'uploaded_image')
-                                    }
+                    st.write("**📋 ファイル内容プレビュー**")
+                    metadata = data.get('metadata', {})
                     
-                    st.success("データを読み込みました")
-                    st.json(data.get('metadata', {}))
-                    st.rerun()
+                    col_info1, col_info2, col_info3 = st.columns(3)
+                    with col_info1:
+                        st.metric("アクション数", len(data.get('actions', [])))
+                    with col_info2:
+                        st.metric("画像数", len(data.get('images', {})))
+                    with col_info3:
+                        created_at = metadata.get('created_at', 'N/A')
+                        if created_at != 'N/A':
+                            try:
+                                created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                                st.metric("作成日時", created_date.strftime('%Y/%m/%d %H:%M'))
+                            except:
+                                st.metric("作成日時", created_at)
+                        else:
+                            st.metric("作成日時", "N/A")
+                    
+                    # アクションの詳細プレビュー
+                    if data.get('actions'):
+                        st.write("**📝 アクション一覧（最初の5件）**")
+                        preview_actions = data['actions'][:5]
+                        for i, action in enumerate(preview_actions):
+                            if action['type'] == '書く':
+                                st.write(f"{i+1}. 文字「{action['content']}」")
+                            elif action['type'] == '貼る':
+                                st.write(f"{i+1}. 貼り付け「{action.get('label', 'N/A')}」")
+                            else:
+                                st.write(f"{i+1}. {action['type']}")
+                        
+                        if len(data['actions']) > 5:
+                            st.write(f"...他 {len(data['actions']) - 5} 件")
+                    
+                    # 読み込み確認
+                    if load_mode.startswith("新規読み込み"):
+                        if st.session_state.actions:
+                            st.warning("⚠️ 現在の作業内容が削除されます。事前に保存することをお勧めします。")
+                        
+                        if st.button("🔄 新規読み込み実行", type="primary"):
+                            # 現在のデータをクリア
+                            st.session_state.actions = []
+                            st.session_state.uploaded_images = {}
+                            st.session_state.current_time = 0
+                            st.session_state.is_playing = False
+                            
+                            # 新しいデータを読み込み
+                            st.session_state.actions = data['actions']
+                            
+                            # 画像データがある場合は復元
+                            if 'images' in data:
+                                st.session_state.uploaded_images = data['images']
+                            
+                            st.success(f"✅ データを読み込みました！（{len(data['actions'])}件のアクション）")
+                            st.balloons()
+                            time.sleep(1)
+                            st.rerun()
+                    
+                    else:  # 追加読み込み
+                        current_count = len(st.session_state.actions)
+                        new_count = len(data['actions'])
+                        
+                        if st.button("➕ 追加読み込み実行", type="primary"):
+                            # action_idを調整して追加
+                            for action in data['actions']:
+                                action['action_id'] = len(st.session_state.actions)
+                                action['timestamp'] = len(st.session_state.actions)
+                                st.session_state.actions.append(action)
+                            
+                            # 画像データを追加
+                            if 'images' in data:
+                                for img_id, img_data in data['images'].items():
+                                    # 重複を避けるため新しいIDを生成
+                                    new_img_id = f"imported_{img_id}_{len(st.session_state.uploaded_images)}"
+                                    st.session_state.uploaded_images[new_img_id] = img_data
+                                    
+                                    # アクション内の画像IDも更新
+                                    for action in st.session_state.actions:
+                                        if action.get('image_id') == img_id:
+                                            action['image_id'] = new_img_id
+                            
+                            st.success(f"✅ データを追加しました！（{new_count}件のアクションを追加、合計{len(st.session_state.actions)}件）")
+                            st.balloons()
+                            time.sleep(1)
+                            st.rerun()
+                
+                except json.JSONDecodeError:
+                    st.error("❌ JSONファイルの形式が正しくありません")
+                except KeyError as e:
+                    st.error(f"❌ 必要なデータが見つかりません: {e}")
                 except Exception as e:
-                    st.error(f"ファイル読み込みエラー: {e}")
-                    st.error("JSONファイルの形式を確認してください")
+                    st.error(f"❌ ファイル読み込みエラー: {e}")
+            
+            else:
+                st.info("📁 JSONファイルを選択してください")
+                
+                # 使用方法の説明
+                with st.expander("💡 使用方法"):
+                    st.write("""
+                    **新規読み込み**
+                    - 保存したデータで現在の作業を完全に置き換えます
+                    - 途中で中断した作業を再開する場合に使用
+                    
+                    **追加読み込み**
+                    - 保存したデータを現在の作業に追加します
+                    - 複数のファイルを統合する場合に使用
+                    
+                    **注意事項**
+                    - 新規読み込みを行う前に、現在の作業を保存することをお勧めします
+                    - 画像データも含めて完全に復元されます
+                    """)
         
         # 統計情報
         if st.session_state.actions:
