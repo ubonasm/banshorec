@@ -717,11 +717,144 @@ def main():
     
     with tab3:
         st.header("データ管理")
+    
+        # 起動時の読み込み機能を最上部に配置
+        st.subheader("🚀 作業開始")
+        st.write("保存した板書記録から作業を再開できます")
+    
+        # 読み込みモードの選択
+        load_mode = st.radio(
+            "読み込みモード",
+            ["新規読み込み（現在のデータを置き換え）", "追加読み込み（現在のデータに追加）"],
+            help="新規読み込み：保存したデータで完全に置き換え\n追加読み込み：現在の作業に保存したデータを追加"
+        )
+    
+        uploaded_file = st.file_uploader("📁 板書データファイル（JSON）を選択", type=['json'], key="load_data_file")
+    
+        if uploaded_file is not None:
+            try:
+                # ファイル内容をプレビュー
+                data = json.load(uploaded_file)
+            
+                st.write("**📋 ファイル内容プレビュー**")
+                metadata = data.get('metadata', {})
+            
+                col_info1, col_info2, col_info3 = st.columns(3)
+                with col_info1:
+                    st.metric("アクション数", len(data.get('actions', [])))
+                with col_info2:
+                    st.metric("画像数", len(data.get('images', {})))
+                with col_info3:
+                    created_at = metadata.get('created_at', 'N/A')
+                    if created_at != 'N/A':
+                        try:
+                            created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            st.metric("作成日時", created_date.strftime('%Y/%m/%d %H:%M'))
+                        except:
+                            st.metric("作成日時", created_at)
+                    else:
+                        st.metric("作成日時", "N/A")
+            
+                # アクションの詳細プレビュー
+                if data.get('actions'):
+                    st.write("**📝 アクション一覧（最初の5件）**")
+                    preview_actions = data['actions'][:5]
+                    for i, action in enumerate(preview_actions):
+                        if action['type'] == '書く':
+                            st.write(f"{i+1}. 文字「{action['content']}」")
+                        elif action['type'] == '貼る':
+                            st.write(f"{i+1}. 貼り付け「{action.get('label', 'N/A')}」")
+                        else:
+                            st.write(f"{i+1}. {action['type']}")
+                
+                    if len(data['actions']) > 5:
+                        st.write(f"...他 {len(data['actions']) - 5} 件")
+            
+                # 読み込み確認
+                if load_mode.startswith("新規読み込み"):
+                    if st.session_state.actions:
+                        st.warning("⚠️ 現在の作業内容が削除されます。事前に保存することをお勧めします。")
+                
+                    if st.button("🔄 新規読み込み実行", type="primary"):
+                        # 現在のデータをクリア
+                        st.session_state.actions = []
+                        st.session_state.uploaded_images = {}
+                        st.session_state.current_time = 0
+                        st.session_state.is_playing = False
+                    
+                        # 新しいデータを読み込み
+                        st.session_state.actions = data['actions']
+                    
+                        # 画像データがある場合は復元
+                        if 'images' in data:
+                            st.session_state.uploaded_images = data['images']
+                    
+                        st.success(f"✅ データを読み込みました！（{len(data['actions'])}件のアクション）")
+                        st.balloons()
+                        time.sleep(1)
+                        st.rerun()
+            
+                else:  # 追加読み込み
+                    current_count = len(st.session_state.actions)
+                    new_count = len(data['actions'])
+                
+                    if st.button("➕ 追加読み込み実行", type="primary"):
+                        # action_idを調整して追加
+                        for action in data['actions']:
+                            action['action_id'] = len(st.session_state.actions)
+                            action['timestamp'] = len(st.session_state.actions)
+                            st.session_state.actions.append(action)
+                    
+                        # 画像データを追加
+                        if 'images' in data:
+                            for img_id, img_data in data['images'].items():
+                                # 重複を避けるため新しいIDを生成
+                                new_img_id = f"imported_{img_id}_{len(st.session_state.uploaded_images)}"
+                                st.session_state.uploaded_images[new_img_id] = img_data
+                            
+                                # アクション内の画像IDも更新
+                                for action in st.session_state.actions:
+                                    if action.get('image_id') == img_id:
+                                        action['image_id'] = new_img_id
+                    
+                        st.success(f"✅ データを追加しました！（{new_count}件のアクションを追加、合計{len(st.session_state.actions)}件）")
+                        st.balloons()
+                        time.sleep(1)
+                        st.rerun()
         
+            except json.JSONDecodeError:
+                st.error("❌ JSONファイルの形式が正しくありません")
+            except KeyError as e:
+                st.error(f"❌ 必要なデータが見つかりません: {e}")
+            except Exception as e:
+                st.error(f"❌ ファイル読み込みエラー: {e}")
+    
+        else:
+            st.info("📁 JSONファイルを選択してください")
+        
+            # 使用方法の説明
+            with st.expander("💡 使用方法"):
+                st.write("""
+                **新規読み込み**
+                - 保存したデータで現在の作業を完全に置き換えます
+                - 途中で中断した作業を再開する場合に使用
+            
+                **追加読み込み**
+                - 保存したデータを現在の作業に追加します
+                - 複数のファイルを統合する場合に使用
+            
+                **注意事項**
+                - 新規読み込みを行う前に、現在の作業を保存することをお勧めします
+                - 画像データも含めて完全に復元されます
+                """)
+    
+        st.divider()
+    
+        # データ保存・管理機能
         col1, col2 = st.columns(2)
-        
+    
         with col1:
-            st.subheader("データ保存")
+            st.subheader("💾 データ保存")
             if st.session_state.actions:
                 data_to_save = {
                     'actions': st.session_state.actions,
@@ -733,7 +866,7 @@ def main():
                         'version': '2.0'  # バージョン情報を追加
                     }
                 }
-                
+            
                 json_str = json.dumps(data_to_save, ensure_ascii=False, indent=2)
                 st.download_button(
                     label="📥 板書データをダウンロード",
@@ -741,148 +874,44 @@ def main():
                     file_name=f"blackboard_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json"
                 )
+            
+                # 現在のデータ情報を表示
+                st.write("**現在のデータ**")
+                st.write(f"- アクション数: {len(st.session_state.actions)}件")
+                st.write(f"- 画像数: {len(st.session_state.uploaded_images)}件")
+            
             else:
                 st.info("保存するデータがありません")
-        
+                st.write("板書記録タブでアクションを記録してから保存してください。")
+    
         with col2:
-            st.subheader("データ読み込み")
-            
-            # 読み込みモードの選択
-            load_mode = st.radio(
-                "読み込みモード",
-                ["新規読み込み（現在のデータを置き換え）", "追加読み込み（現在のデータに追加）"],
-                help="新規読み込み：保存したデータで完全に置き換え\n追加読み込み：現在の作業に保存したデータを追加"
-            )
-            
-            uploaded_file = st.file_uploader("板書データファイル", type=['json'], key="load_data_file")
-            
-            if uploaded_file is not None:
-                try:
-                    # ファイル内容をプレビュー
-                    data = json.load(uploaded_file)
-                    
-                    st.write("**📋 ファイル内容プレビュー**")
-                    metadata = data.get('metadata', {})
-                    
-                    col_info1, col_info2, col_info3 = st.columns(3)
-                    with col_info1:
-                        st.metric("アクション数", len(data.get('actions', [])))
-                    with col_info2:
-                        st.metric("画像数", len(data.get('images', {})))
-                    with col_info3:
-                        created_at = metadata.get('created_at', 'N/A')
-                        if created_at != 'N/A':
-                            try:
-                                created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                                st.metric("作成日時", created_date.strftime('%Y/%m/%d %H:%M'))
-                            except:
-                                st.metric("作成日時", created_at)
-                        else:
-                            st.metric("作成日時", "N/A")
-                    
-                    # アクションの詳細プレビュー
-                    if data.get('actions'):
-                        st.write("**📝 アクション一覧（最初の5件）**")
-                        preview_actions = data['actions'][:5]
-                        for i, action in enumerate(preview_actions):
-                            if action['type'] == '書く':
-                                st.write(f"{i+1}. 文字「{action['content']}」")
-                            elif action['type'] == '貼る':
-                                st.write(f"{i+1}. 貼り付け「{action.get('label', 'N/A')}」")
-                            else:
-                                st.write(f"{i+1}. {action['type']}")
-                        
-                        if len(data['actions']) > 5:
-                            st.write(f"...他 {len(data['actions']) - 5} 件")
-                    
-                    # 読み込み確認
-                    if load_mode.startswith("新規読み込み"):
-                        if st.session_state.actions:
-                            st.warning("⚠️ 現在の作業内容が削除されます。事前に保存することをお勧めします。")
-                        
-                        if st.button("🔄 新規読み込み実行", type="primary"):
-                            # 現在のデータをクリア
-                            st.session_state.actions = []
-                            st.session_state.uploaded_images = {}
-                            st.session_state.current_time = 0
-                            st.session_state.is_playing = False
-                            
-                            # 新しいデータを読み込み
-                            st.session_state.actions = data['actions']
-                            
-                            # 画像データがある場合は復元
-                            if 'images' in data:
-                                st.session_state.uploaded_images = data['images']
-                            
-                            st.success(f"✅ データを読み込みました！（{len(data['actions'])}件のアクション）")
-                            st.balloons()
-                            time.sleep(1)
-                            st.rerun()
-                    
-                    else:  # 追加読み込み
-                        current_count = len(st.session_state.actions)
-                        new_count = len(data['actions'])
-                        
-                        if st.button("➕ 追加読み込み実行", type="primary"):
-                            # action_idを調整して追加
-                            for action in data['actions']:
-                                action['action_id'] = len(st.session_state.actions)
-                                action['timestamp'] = len(st.session_state.actions)
-                                st.session_state.actions.append(action)
-                            
-                            # 画像データを追加
-                            if 'images' in data:
-                                for img_id, img_data in data['images'].items():
-                                    # 重複を避けるため新しいIDを生成
-                                    new_img_id = f"imported_{img_id}_{len(st.session_state.uploaded_images)}"
-                                    st.session_state.uploaded_images[new_img_id] = img_data
-                                    
-                                    # アクション内の画像IDも更新
-                                    for action in st.session_state.actions:
-                                        if action.get('image_id') == img_id:
-                                            action['image_id'] = new_img_id
-                            
-                            st.success(f"✅ データを追加しました！（{new_count}件のアクションを追加、合計{len(st.session_state.actions)}件）")
-                            st.balloons()
-                            time.sleep(1)
-                            st.rerun()
-                
-                except json.JSONDecodeError:
-                    st.error("❌ JSONファイルの形式が正しくありません")
-                except KeyError as e:
-                    st.error(f"❌ 必要なデータが見つかりません: {e}")
-                except Exception as e:
-                    st.error(f"❌ ファイル読み込みエラー: {e}")
-            
+            st.subheader("🗂️ 現在の作業状況")
+            if st.session_state.actions:
+                # 最新のアクション5件を表示
+                st.write("**最新のアクション（5件）**")
+                recent_actions = st.session_state.actions[-5:]
+                for i, action in enumerate(reversed(recent_actions)):
+                    idx = len(st.session_state.actions) - i
+                    if action['type'] == '書く':
+                        st.write(f"{idx}. 文字「{action['content']}」")
+                    elif action['type'] == '貼る':
+                        st.write(f"{idx}. 貼り付け「{action.get('label', 'N/A')}」")
+                    else:
+                        st.write(f"{idx}. {action['type']}")
             else:
-                st.info("📁 JSONファイルを選択してください")
-                
-                # 使用方法の説明
-                with st.expander("💡 使用方法"):
-                    st.write("""
-                    **新規読み込み**
-                    - 保存したデータで現在の作業を完全に置き換えます
-                    - 途中で中断した作業を再開する場合に使用
-                    
-                    **追加読み込み**
-                    - 保存したデータを現在の作業に追加します
-                    - 複数のファイルを統合する場合に使用
-                    
-                    **注意事項**
-                    - 新規読み込みを行う前に、現在の作業を保存することをお勧めします
-                    - 画像データも含めて完全に復元されます
-                    """)
-        
+                st.info("まだアクションが記録されていません")
+                st.write("板書記録タブでアクションを記録してください。")
+    
         # 統計情報
         if st.session_state.actions:
-            st.subheader("統計情報")
-            
+            st.subheader("📊 統計情報")
+        
             # アクションタイプ別の集計
             action_counts = {}
             for action in st.session_state.actions:
                 action_type = action['type']
                 action_counts[action_type] = action_counts.get(action_type, 0) + 1
-            
+        
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("総アクション数", len(st.session_state.actions))
@@ -891,22 +920,22 @@ def main():
             with col3:
                 most_used = max(action_counts, key=action_counts.get) if action_counts else "なし"
                 st.metric("最多使用アクション", most_used)
-            
+        
             # アクションタイプ分布
             if action_counts:
                 fig = px.pie(values=list(action_counts.values()), 
                            names=list(action_counts.keys()), 
                            title="アクションタイプ分布")
                 st.plotly_chart(fig, use_container_width=True)
-        
+    
         # 記録管理機能
-        st.subheader("記録管理")
+        if st.session_state.actions:
+            st.subheader("🗑️ 記録管理")
 
-        col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-        with col1:
-            st.write("**個別削除**")
-            if st.session_state.actions:
+            with col1:
+                st.write("**個別削除**")
                 # 削除可能なアクションを選択
                 delete_options = []
                 for i, action in enumerate(st.session_state.actions):
@@ -922,71 +951,68 @@ def main():
                         delete_options.append((i, f"{i+1}. 関連付け"))
                     elif action['type'] == '貼る':
                         delete_options.append((i, f"{i+1}. 貼り付け「{action['label']}」"))
-                
+            
                 if delete_options:
                     selected_delete = st.selectbox(
                         "削除する記録を選択",
                         options=[idx for idx, desc in delete_options],
                         format_func=lambda x: next(desc for idx, desc in delete_options if idx == x)
                     )
-                    
+                
                     if st.button("選択した記録を削除", type="secondary"):
                         if st.checkbox("本当に削除しますか？", key="confirm_single_delete"):
                             deleted_action = st.session_state.actions.pop(selected_delete)
-                            
+                        
                             # action_idを再割り当て
                             for j, act in enumerate(st.session_state.actions):
                                 act['action_id'] = j
-                            
+                        
                             # 削除されたアクションを参照している消去アクションも削除
                             st.session_state.actions = [
                                 act for act in st.session_state.actions 
                                 if not (act['type'] == '消す（よける）' and act.get('target_action_id') == deleted_action.get('action_id'))
                             ]
-                            
+                        
                             st.success("記録を削除しました")
                             st.rerun()
                 else:
                     st.info("削除可能な記録がありません")
-            else:
-                st.info("削除可能な記録がありません")
 
-        with col2:
-            st.write("**範囲削除**")
-            if st.session_state.actions:
+            with col2:
+                st.write("**範囲削除**")
                 start_idx = st.number_input("開始番号", min_value=1, max_value=len(st.session_state.actions), value=1)
                 end_idx = st.number_input("終了番号", min_value=start_idx, max_value=len(st.session_state.actions), value=len(st.session_state.actions))
-                
+            
                 if st.button("範囲削除", type="secondary"):
                     if st.checkbox("本当に削除しますか？", key="confirm_range_delete"):
                         # 指定範囲のアクションを削除（1-indexedから0-indexedに変換）
                         deleted_actions = st.session_state.actions[start_idx-1:end_idx]
                         st.session_state.actions = st.session_state.actions[:start_idx-1] + st.session_state.actions[end_idx:]
-                        
+                    
                         # action_idを再割り当て
                         for j, act in enumerate(st.session_state.actions):
                             act['action_id'] = j
-                        
+                    
                         # 削除されたアクションを参照している消去アクションも削除
                         deleted_action_ids = {act.get('action_id') for act in deleted_actions}
                         st.session_state.actions = [
                             act for act in st.session_state.actions 
                             if not (act['type'] == '消す（よける）' and act.get('target_action_id') in deleted_action_ids)
                         ]
-                        
+                    
                         st.success(f"記録 {start_idx} から {end_idx} を削除しました")
                         st.rerun()
-            else:
-                st.info("削除可能な記録がありません")
         
-        # データクリア
-        if st.button("🗑️ 全データをクリア", type="secondary"):
-            if st.checkbox("本当にクリアしますか？"):
-                st.session_state.actions = []
-                st.session_state.current_time = 0
-                st.session_state.is_playing = False
-                st.success("データをクリアしました")
-                st.rerun()
+            # データクリア
+            st.write("**全データクリア**")
+            if st.button("🗑️ 全データをクリア", type="secondary"):
+                if st.checkbox("本当にクリアしますか？", key="confirm_clear_all"):
+                    st.session_state.actions = []
+                    st.session_state.uploaded_images = {}
+                    st.session_state.current_time = 0
+                    st.session_state.is_playing = False
+                    st.success("データをクリアしました")
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
