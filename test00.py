@@ -709,8 +709,8 @@ def main():
                     
                     st.success("記録を削除しました")
                     st.rerun()
-    else:
-        st.info("削除可能な記録がありません")
+        else:
+            st.info("削除可能な記録がありません")
 
 with col2:
     st.write("**範囲削除**")
