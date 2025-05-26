@@ -725,10 +725,12 @@ def main():
             if st.session_state.actions:
                 data_to_save = {
                     'actions': st.session_state.actions,
+                    'images': st.session_state.uploaded_images,  # 画像データも保存
                     'metadata': {
                         'total_actions': len(st.session_state.actions),
                         'created_at': datetime.now().isoformat(),
-                        'grid_size': f"{GRID_WIDTH}x{GRID_HEIGHT}"
+                        'grid_size': f"{GRID_WIDTH}x{GRID_HEIGHT}",
+                        'version': '2.0'  # バージョン情報を追加
                     }
                 }
                 
@@ -749,11 +751,28 @@ def main():
                 try:
                     data = json.load(uploaded_file)
                     st.session_state.actions = data['actions']
+                    
+                    # 画像データがある場合は復元
+                    if 'images' in data:
+                        st.session_state.uploaded_images = data['images']
+                    else:
+                        # 古い形式との互換性のため、アクションから画像データを復元
+                        for action in st.session_state.actions:
+                            if action.get('type') == '貼る' and action.get('image_data'):
+                                image_id = action.get('image_id')
+                                if image_id:
+                                    st.session_state.uploaded_images[image_id] = {
+                                        'data': action['image_data'],
+                                        'type': action.get('image_type', 'image/png'),
+                                        'name': action.get('image_name', 'uploaded_image')
+                                    }
+                    
                     st.success("データを読み込みました")
                     st.json(data.get('metadata', {}))
                     st.rerun()
                 except Exception as e:
                     st.error(f"ファイル読み込みエラー: {e}")
+                    st.error("JSONファイルの形式を確認してください")
         
         # 統計情報
         if st.session_state.actions:
