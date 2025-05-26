@@ -685,60 +685,60 @@ def main():
                         delete_options.append((i, f"{i+1}. 囲み"))
                     elif action['type'] == '関連付ける':
                         delete_options.append((i, f"{i+1}. 関連付け"))
-        
-        if delete_options:
-            selected_delete = st.selectbox(
-                "削除する記録を選択",
-                options=[idx for idx, desc in delete_options],
-                format_func=lambda x: next(desc for idx, desc in delete_options if idx == x)
-            )
-            
-            if st.button("選択した記録を削除", type="secondary"):
-                if st.checkbox("本当に削除しますか？", key="confirm_single_delete"):
-                    deleted_action = st.session_state.actions.pop(selected_delete)
+                
+                if delete_options:
+                    selected_delete = st.selectbox(
+                        "削除する記録を選択",
+                        options=[idx for idx, desc in delete_options],
+                        format_func=lambda x: next(desc for idx, desc in delete_options if idx == x)
+                    )
                     
-                    # action_idを再割り当て
-                    for j, act in enumerate(st.session_state.actions):
-                        act['action_id'] = j
-                    
-                    # 削除されたアクションを参照している消去アクションも削除
-                    st.session_state.actions = [
-                        act for act in st.session_state.actions 
-                        if not (act['type'] == '消す（よける）' and act.get('target_action_id') == deleted_action.get('action_id'))
-                    ]
-                    
-                    st.success("記録を削除しました")
-                    st.rerun()
-        else:
-            st.info("削除可能な記録がありません")
+                    if st.button("選択した記録を削除", type="secondary"):
+                        if st.checkbox("本当に削除しますか？", key="confirm_single_delete"):
+                            deleted_action = st.session_state.actions.pop(selected_delete)
+                            
+                            # action_idを再割り当て
+                            for j, act in enumerate(st.session_state.actions):
+                                act['action_id'] = j
+                            
+                            # 削除されたアクションを参照している消去アクションも削除
+                            st.session_state.actions = [
+                                act for act in st.session_state.actions 
+                                if not (act['type'] == '消す（よける）' and act.get('target_action_id') == deleted_action.get('action_id'))
+                            ]
+                            
+                            st.success("記録を削除しました")
+                            st.rerun()
+                else:
+                    st.info("削除可能な記録がありません")
 
-with col2:
-    st.write("**範囲削除**")
-    if st.session_state.actions:
-        start_idx = st.number_input("開始番号", min_value=1, max_value=len(st.session_state.actions), value=1)
-        end_idx = st.number_input("終了番号", min_value=start_idx, max_value=len(st.session_state.actions), value=len(st.session_state.actions))
-        
-        if st.button("範囲削除", type="secondary"):
-            if st.checkbox("本当に削除しますか？", key="confirm_range_delete"):
-                # 指定範囲のアクションを削除（1-indexedから0-indexedに変換）
-                deleted_actions = st.session_state.actions[start_idx-1:end_idx]
-                st.session_state.actions = st.session_state.actions[:start_idx-1] + st.session_state.actions[end_idx:]
+        with col2:
+            st.write("**範囲削除**")
+            if st.session_state.actions:
+                start_idx = st.number_input("開始番号", min_value=1, max_value=len(st.session_state.actions), value=1)
+                end_idx = st.number_input("終了番号", min_value=start_idx, max_value=len(st.session_state.actions), value=len(st.session_state.actions))
                 
-                # action_idを再割り当て
-                for j, act in enumerate(st.session_state.actions):
-                    act['action_id'] = j
-                
-                # 削除されたアクションを参照している消去アクションも削除
-                deleted_action_ids = {act.get('action_id') for act in deleted_actions}
-                st.session_state.actions = [
-                    act for act in st.session_state.actions 
-                    if not (act['type'] == '消す（よける）' and act.get('target_action_id') in deleted_action_ids)
-                ]
-                
-                st.success(f"記録 {start_idx} から {end_idx} を削除しました")
-                st.rerun()
-    else:
-        st.info("削除可能な記録がありません")
+                if st.button("範囲削除", type="secondary"):
+                    if st.checkbox("本当に削除しますか？", key="confirm_range_delete"):
+                        # 指定範囲のアクションを削除（1-indexedから0-indexedに変換）
+                        deleted_actions = st.session_state.actions[start_idx-1:end_idx]
+                        st.session_state.actions = st.session_state.actions[:start_idx-1] + st.session_state.actions[end_idx:]
+                        
+                        # action_idを再割り当て
+                        for j, act in enumerate(st.session_state.actions):
+                            act['action_id'] = j
+                        
+                        # 削除されたアクションを参照している消去アクションも削除
+                        deleted_action_ids = {act.get('action_id') for act in deleted_actions}
+                        st.session_state.actions = [
+                            act for act in st.session_state.actions 
+                            if not (act['type'] == '消す（よける）' and act.get('target_action_id') in deleted_action_ids)
+                        ]
+                        
+                        st.success(f"記録 {start_idx} から {end_idx} を削除しました")
+                        st.rerun()
+            else:
+                st.info("削除可能な記録がありません")
         
         # データクリア
         if st.button("🗑️ 全データをクリア", type="secondary"):
