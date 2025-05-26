@@ -28,6 +28,9 @@ if 'lecture_records' not in st.session_state:
 # セッション状態に消去されたアクションIDを追跡
 if 'erased_actions' not in st.session_state:
     st.session_state.erased_actions = set()
+# 画像データを保存するための状態を追加
+if 'uploaded_images' not in st.session_state:
+    st.session_state.uploaded_images = {}
 
 # 黒板のグリッド設定
 GRID_WIDTH = 30
@@ -229,6 +232,61 @@ def create_blackboard_html(actions, current_time=None):
                          fill="{action['color']}"/>
             </svg>
             """
+        
+        elif action['type'] == '貼る':
+            start_x = action['start_x'] * CELL_SIZE
+            start_y = action['start_y'] * CELL_SIZE
+            end_x = action['end_x'] * CELL_SIZE
+            end_y = action['end_y'] * CELL_SIZE
+            
+            width = abs(end_x - start_x)
+            height = abs(end_y - start_y)
+            left = min(start_x, end_x)
+            top = min(start_y, end_y)
+            
+            # 画像がある場合は画像を表示、ない場合は白い四角
+            if action.get('image_id') and action['image_id'] in st.session_state.uploaded_images:
+                image_info = st.session_state.uploaded_images[action['image_id']]
+                image_data = image_info['data']
+                image_type = image_info['type']
+                
+                html += f"""
+                <div style="
+                    position: absolute; 
+                    left: {left}px; 
+                    top: {top}px; 
+                    width: {width}px; 
+                    height: {height}px; 
+                    border: 2px solid {action['border_color']}; 
+                    border-radius: 3px;
+                    overflow: hidden;
+                    pointer-events: none;
+                ">
+                    <img src="data:{image_type};base64,{image_data}" 
+                         style="width: 100%; height: 100%; object-fit: cover;" 
+                         alt="{action['label']}" />
+                </div>
+                """
+            else:
+                # 代替表示（白い四角）
+                html += f"""
+                <div style="
+                    position: absolute; 
+                    left: {left}px; 
+                    top: {top}px; 
+                    width: {width}px; 
+                    height: {height}px; 
+                    background-color: {action['bg_color']}; 
+                    border: 2px solid {action['border_color']}; 
+                    border-radius: 3px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    color: #666;
+                    pointer-events: none;
+                ">{action['label']}</div>
+                """
     
     html += "</div></div>"
     return html
@@ -270,7 +328,7 @@ def main():
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            action_type = st.selectbox("アクションタイプ", ["書く", "消す（よける）", "線を引く", "囲う", "関連付ける"])
+            action_type = st.selectbox("アクションタイプ", ["書く", "消す（よける）", "線を引く", "囲う", "関連付ける", "貼る"])
             
             if action_type == "書く":
                 st.subheader("文字書き込み")
@@ -330,6 +388,8 @@ def main():
                             available_actions.append((action.get('action_id', i), f"囲み ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
                         elif action['type'] == '関連付ける':
                             available_actions.append((action.get('action_id', i), f"関連付け ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
+                        elif action['type'] == '貼る':
+                            available_actions.append((action.get('action_id', i), f"貼り付け「{action['label']}」({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
                 
                 if available_actions:
                     selected_action = st.selectbox("消去するオブジェクト", 
@@ -443,6 +503,61 @@ def main():
                     st.session_state.actions.append(action)
                     st.success("関連付けを記録しました")
                     st.rerun()
+            
+            elif action_type == "貼る":
+                st.subheader("貼り付け")
+                coord_options = get_grid_coordinates()
+                start_coord = st.selectbox("開始座標", coord_options, key="paste_start")
+                end_coord = st.selectbox("終了座標", coord_options, key="paste_end")
+                
+                # 画像アップロード機能
+                uploaded_image = st.file_uploader("教材画像（オプション）", type=['png', 'jpg', 'jpeg', 'gif'], key="paste_image")
+                
+                # 代替表示の設定
+                bg_color = st.color_picker("背景色", "#FFFFFF")
+                border_color = st.color_picker("枠線色", "#000000")
+                
+                # ラベル（何を貼ったかの説明）
+                label = st.text_input("ラベル（何を貼ったか）", placeholder="例：プリント、写真、図表など")
+                
+                # 時間入力を追加
+                default_time = len(st.session_state.actions)
+                time_input = st.number_input("時間（秒）", min_value=0.0, value=float(default_time), step=0.1)
+                
+                if st.button("貼り付けを記録"):
+                    start_x, start_y = parse_coordinates(start_coord)
+                    end_x, end_y = parse_coordinates(end_coord)
+                    
+                    # 画像データの処理
+                    image_id = None
+                    if uploaded_image is not None:
+                        image_id = f"image_{len(st.session_state.actions)}"
+                        # 画像データをbase64エンコードして保存
+                        import base64
+                        image_data = base64.b64encode(uploaded_image.read()).decode()
+                        st.session_state.uploaded_images[image_id] = {
+                            'data': image_data,
+                            'type': uploaded_image.type,
+                            'name': uploaded_image.name
+                        }
+                    
+                    action = {
+                        'action_id': len(st.session_state.actions),
+                        'type': '貼る',
+                        'start_x': start_x,
+                        'start_y': start_y,
+                        'end_x': end_x,
+                        'end_y': end_y,
+                        'bg_color': bg_color,
+                        'border_color': border_color,
+                        'label': label,
+                        'image_id': image_id,
+                        'time': time_input,
+                        'timestamp': len(st.session_state.actions)
+                    }
+                    st.session_state.actions.append(action)
+                    st.success(f"貼り付け「{label}」を記録しました")
+                    st.rerun()
         
         with col2:
             st.subheader("現在の板書状態")
@@ -475,6 +590,8 @@ def main():
                             st.write(f"{i+1}. 囲み ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
                         elif action['type'] == '関連付ける':
                             st.write(f"{i+1}. 関連付け ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
+                        elif action['type'] == '貼る':
+                            st.write(f"{i+1}. 貼り付け「{action['label']}」({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
                     
                     with col_delete:
                         # 削除確認状態をチェック
@@ -685,6 +802,8 @@ def main():
                         delete_options.append((i, f"{i+1}. 囲み"))
                     elif action['type'] == '関連付ける':
                         delete_options.append((i, f"{i+1}. 関連付け"))
+                    elif action['type'] == '貼る':
+                        delete_options.append((i, f"{i+1}. 貼り付け「{action['label']}」"))
                 
                 if delete_options:
                     selected_delete = st.selectbox(
