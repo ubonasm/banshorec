@@ -343,14 +343,14 @@ def main():
                 direction = st.radio("the way", ["Horizontal writing", "Vertical writing"])
                 
                 # スタイル設定
-                color = st.color_picker("文字色", "#FFFFFF")
+                color = st.color_picker("color", "#FFFFFF")
                 size = st.slider("words size", 8, 24, 12)
                 
                 # 時間入力を追加
                 default_time = len(st.session_state.actions)
                 time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("文字を記録"):
+                if st.button("recording the words"):
                     if content:
                         start_x, start_y = parse_coordinates(start_coord)
                         end_x, end_y = parse_coordinates(end_coord)
@@ -398,7 +398,7 @@ def main():
                     
                     time_input = st.number_input("time（seconds）", min_value=0.0, value=float(len(st.session_state.actions)), step=0.1)
                     
-                    if st.button("消去を記録"):
+                    if st.button("recording the erase"):
                         action = {
                             'action_id': len(st.session_state.actions),
                             'type': 'erase',
@@ -424,7 +424,7 @@ def main():
                 default_time = len(st.session_state.actions)
                 time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("線を記録"):
+                if st.button("recording the line"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
@@ -455,7 +455,7 @@ def main():
                 default_time = len(st.session_state.actions)
                 time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("囲みを記録"):
+                if st.button("recording the surround"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
@@ -485,7 +485,7 @@ def main():
                 default_time = len(st.session_state.actions)
                 time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("関連付けを記録"):
+                if st.button("recording the relationship"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
@@ -524,7 +524,7 @@ def main():
                 default_time = len(st.session_state.actions)
                 time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("貼り付けを記録"):
+                if st.button("recording the stick"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
