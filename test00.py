@@ -9,7 +9,7 @@ import math
 
 # ページ設定
 st.set_page_config(
-    page_title="Analyzing System for Board Writing",
+    page_title="板書記録・再現システム",
     page_icon="📝",
     layout="wide"
 )
@@ -48,7 +48,7 @@ def create_blackboard_html(actions, current_time=None):
     # 消去されたアクションIDを追跡
     erased_action_ids = set()
     for action in filtered_actions:
-        if action['type'] == 'erase':
+        if action['type'] == '消す（よける）':
             erased_action_ids.add(action['target_action_id'])
     
     html = f"""
@@ -105,7 +105,7 @@ def create_blackboard_html(actions, current_time=None):
         if action.get('action_id') in erased_action_ids:
             continue
             
-        if action['type'] == 'write words':
+        if action['type'] == '書く':
             # 文字の描画
             start_x = action['start_x'] * CELL_SIZE + CELL_SIZE // 2
             start_y = action['start_y'] * CELL_SIZE + CELL_SIZE // 2
@@ -121,7 +121,7 @@ def create_blackboard_html(actions, current_time=None):
             """
             
             # 文字の配置計算
-            if action['direction'] == 'Horizontal writing (横書き)':
+            if action['direction'] == '横書き':
                 text_x = start_x
                 text_y = start_y
                 writing_mode = 'horizontal-tb'
@@ -171,7 +171,7 @@ def create_blackboard_html(actions, current_time=None):
             " title="書き終わり"></div>
             """
         
-        elif action['type'] == 'draw the line':
+        elif action['type'] == '線を引く':
             start_x = action['start_x'] * CELL_SIZE + CELL_SIZE // 2
             start_y = action['start_y'] * CELL_SIZE + CELL_SIZE // 2
             end_x = action['end_x'] * CELL_SIZE + CELL_SIZE // 2
@@ -184,7 +184,7 @@ def create_blackboard_html(actions, current_time=None):
             </svg>
             """
         
-        elif action['type'] == 'surround':
+        elif action['type'] == '囲う':
             start_x = action['start_x'] * CELL_SIZE
             start_y = action['start_y'] * CELL_SIZE
             end_x = action['end_x'] * CELL_SIZE
@@ -208,7 +208,7 @@ def create_blackboard_html(actions, current_time=None):
             "></div>
             """
         
-        elif action['type'] == 'relate':
+        elif action['type'] == '関連付ける':
             start_x = action['start_x'] * CELL_SIZE + CELL_SIZE // 2
             start_y = action['start_y'] * CELL_SIZE + CELL_SIZE // 2
             end_x = action['end_x'] * CELL_SIZE + CELL_SIZE // 2
@@ -233,7 +233,7 @@ def create_blackboard_html(actions, current_time=None):
             </svg>
             """
         
-        elif action['type'] == 'stick/ put':
+        elif action['type'] == '貼る':
             start_x = action['start_x'] * CELL_SIZE
             start_y = action['start_y'] * CELL_SIZE
             end_x = action['end_x'] * CELL_SIZE
@@ -309,13 +309,13 @@ def main():
     st.title("📝 板書記録・再現システム")
     
     # タブの作成
-    tab1, tab2, tab3 = st.tabs(["📝 Recording BW", "▶️ reproducing BW", "📊 Management data"])
+    tab1, tab2, tab3 = st.tabs(["📝 板書記録", "▶️ 板書再現", "📊 データ管理"])
     
     with tab1:
-        st.header("Recording BW")
+        st.header("板書記録")
         
         # 授業記録CSVのアップロード
-        uploaded_csv = st.file_uploader("transcript as CSV file (option)", type=['csv'])
+        uploaded_csv = st.file_uploader("授業記録CSVファイル（オプション）", type=['csv'])
         if uploaded_csv is not None:
             try:
                 st.session_state.lecture_records = pd.read_csv(uploaded_csv)
@@ -328,36 +328,36 @@ def main():
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            action_type = st.selectbox("Teacher's Action", ["write", "erase", "draw the line", "surround", "relate", "stick/ put"])
+            action_type = st.selectbox("アクションタイプ", ["書く", "消す（よける）", "線を引く", "囲う", "関連付ける", "貼る"])
             
-            if action_type == "write":
-                st.subheader("writing information")
-                content = st.text_input("words")
+            if action_type == "書く":
+                st.subheader("文字書き込み")
+                content = st.text_input("書き込む文字")
                 
                 # 座標選択
                 coord_options = get_grid_coordinates()
-                start_coord = st.selectbox("Start coordinates", coord_options, key="text_start")
-                end_coord = st.selectbox("End coordinates", coord_options, key="text_end")
+                start_coord = st.selectbox("書き始め座標", coord_options, key="text_start")
+                end_coord = st.selectbox("書き終わり座標", coord_options, key="text_end")
                 
                 # 書字方向選択
-                direction = st.radio("the way", ["Horizontal writing", "Vertical writing"])
+                direction = st.radio("書字方向", ["横書き", "縦書き"])
                 
                 # スタイル設定
-                color = st.color_picker("color", "#FFFFFF")
-                size = st.slider("words size", 8, 24, 12)
+                color = st.color_picker("文字色", "#FFFFFF")
+                size = st.slider("文字サイズ", 8, 24, 12)
                 
                 # 時間入力を追加
                 default_time = len(st.session_state.actions)
-                time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
+                time_input = st.number_input("時間（秒）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("recording the words"):
+                if st.button("文字を記録"):
                     if content:
                         start_x, start_y = parse_coordinates(start_coord)
                         end_x, end_y = parse_coordinates(end_coord)
                         
                         action = {
                             'action_id': len(st.session_state.actions),  # ユニークID
-                            'type': 'write',
+                            'type': '書く',
                             'content': content,
                             'start_x': start_x,
                             'start_y': start_y,
@@ -373,22 +373,22 @@ def main():
                         st.success(f"文字「{content}」を記録しました")
                         st.rerun()
 
-            elif action_type == "erase":
-                st.subheader("erase")
+            elif action_type == "消す（よける）":
+                st.subheader("消去")
                 
                 # 消去可能なアクションを表示
                 available_actions = []
                 for i, action in enumerate(st.session_state.actions):
-                    if action['type'] != 'erase' and action.get('action_id', i) not in st.session_state.erased_actions:
-                        if action['type'] == 'write':
+                    if action['type'] != '消す（よける）' and action.get('action_id', i) not in st.session_state.erased_actions:
+                        if action['type'] == '書く':
                             available_actions.append((action.get('action_id', i), f"文字「{action['content']}」({action['start_x']},{action['start_y']})"))
-                        elif action['type'] == 'draw the line':
+                        elif action['type'] == '線を引く':
                             available_actions.append((action.get('action_id', i), f"線 ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
-                        elif action['type'] == 'surround':
+                        elif action['type'] == '囲う':
                             available_actions.append((action.get('action_id', i), f"囲み ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
-                        elif action['type'] == 'relate':
+                        elif action['type'] == '関連付ける':
                             available_actions.append((action.get('action_id', i), f"関連付け ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
-                        elif action['type'] == 'stick/ put':
+                        elif action['type'] == '貼る':
                             available_actions.append((action.get('action_id', i), f"貼り付け「{action['label']}」({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']})"))
                 
                 if available_actions:
@@ -396,12 +396,12 @@ def main():
                                                  options=[aid for aid, desc in available_actions],
                                                  format_func=lambda x: next(desc for aid, desc in available_actions if aid == x))
                     
-                    time_input = st.number_input("time（seconds）", min_value=0.0, value=float(len(st.session_state.actions)), step=0.1)
+                    time_input = st.number_input("時間（秒）", min_value=0.0, value=float(len(st.session_state.actions)), step=0.1)
                     
-                    if st.button("recording the erase"):
+                    if st.button("消去を記録"):
                         action = {
                             'action_id': len(st.session_state.actions),
-                            'type': 'erase',
+                            'type': '消す（よける）',
                             'target_action_id': selected_action,
                             'time': time_input,
                             'timestamp': len(st.session_state.actions)
@@ -412,19 +412,19 @@ def main():
                 else:
                     st.info("消去可能なオブジェクトがありません")
 
-            elif action_type == "draw the line":
+            elif action_type == "線を引く":
                 st.subheader("線描画")
                 coord_options = get_grid_coordinates()
-                start_coord = st.selectbox("Start coordinates", coord_options, key="line_start")
-                end_coord = st.selectbox("End coordinates", coord_options, key="line_end")
-                color = st.color_picker("color", "#FFFFFF")
-                thickness = st.slider("width", 1, 10, 2)
+                start_coord = st.selectbox("開始座標", coord_options, key="line_start")
+                end_coord = st.selectbox("終了座標", coord_options, key="line_end")
+                color = st.color_picker("線の色", "#FFFFFF")
+                thickness = st.slider("線の太さ", 1, 10, 2)
                 
                 # 時間入力を追加
                 default_time = len(st.session_state.actions)
-                time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
+                time_input = st.number_input("時間（秒）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("recording the line"):
+                if st.button("線を記録"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
@@ -444,24 +444,24 @@ def main():
                     st.success("線を記録しました")
                     st.rerun()
 
-            elif action_type == "surround":
+            elif action_type == "囲う":
                 st.subheader("囲み")
                 coord_options = get_grid_coordinates()
-                start_coord = st.selectbox("Start coordinates", coord_options, key="box_start")
-                end_coord = st.selectbox("End coordinates", coord_options, key="box_end")
-                color = st.color_picker("color", "#FFFF00")
+                start_coord = st.selectbox("開始座標", coord_options, key="box_start")
+                end_coord = st.selectbox("終了座標", coord_options, key="box_end")
+                color = st.color_picker("囲みの色", "#FFFF00")
                 
                 # 時間入力を追加
                 default_time = len(st.session_state.actions)
-                time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
+                time_input = st.number_input("時間（秒）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("recording the surround"):
+                if st.button("囲みを記録"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
                     action = {
                         'action_id': len(st.session_state.actions),
-                        'type': 'surround',
+                        'type': '囲う',
                         'start_x': start_x,
                         'start_y': start_y,
                         'end_x': end_x,
@@ -474,24 +474,24 @@ def main():
                     st.success("囲みを記録しました")
                     st.rerun()
 
-            elif action_type == "relate":
+            elif action_type == "関連付ける":
                 st.subheader("関連付け")
                 coord_options = get_grid_coordinates()
-                start_coord = st.selectbox("Start coordinates", coord_options, key="rel_start")
-                end_coord = st.selectbox("End coordinates", coord_options, key="rel_end")
-                color = st.color_picker("color", "#FFD93D")
+                start_coord = st.selectbox("開始座標", coord_options, key="rel_start")
+                end_coord = st.selectbox("終了座標", coord_options, key="rel_end")
+                color = st.color_picker("矢印の色", "#FFD93D")
                 
                 # 時間入力を追加
                 default_time = len(st.session_state.actions)
-                time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
+                time_input = st.number_input("時間（秒）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("recording the relationship"):
+                if st.button("関連付けを記録"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
                     action = {
                         'action_id': len(st.session_state.actions),
-                        'type': 'relate',
+                        'type': '関連付ける',
                         'start_x': start_x,
                         'start_y': start_y,
                         'end_x': end_x,
@@ -504,27 +504,27 @@ def main():
                     st.success("関連付けを記録しました")
                     st.rerun()
             
-            elif action_type == "stick/ put":
+            elif action_type == "貼る":
                 st.subheader("貼り付け")
                 coord_options = get_grid_coordinates()
-                start_coord = st.selectbox("Start coordinates", coord_options, key="paste_start")
-                end_coord = st.selectbox("End coordinates", coord_options, key="paste_end")
+                start_coord = st.selectbox("開始座標", coord_options, key="paste_start")
+                end_coord = st.selectbox("終了座標", coord_options, key="paste_end")
                 
                 # 画像アップロード機能
-                uploaded_image = st.file_uploader("pictures of materials（option）", type=['png', 'jpg', 'jpeg', 'gif'], key="paste_image")
+                uploaded_image = st.file_uploader("教材画像（オプション）", type=['png', 'jpg', 'jpeg', 'gif'], key="paste_image")
                 
                 # 代替表示の設定
                 bg_color = st.color_picker("背景色", "#FFFFFF")
                 border_color = st.color_picker("枠線色", "#000000")
                 
                 # ラベル（何を貼ったかの説明）
-                label = st.text_input("labeling", placeholder="例：paper, picture, data etc.")
+                label = st.text_input("ラベル（何を貼ったか）", placeholder="例：プリント、写真、図表など")
                 
                 # 時間入力を追加
                 default_time = len(st.session_state.actions)
-                time_input = st.number_input("time（seconds）", min_value=0.0, value=float(default_time), step=0.1)
+                time_input = st.number_input("時間（秒）", min_value=0.0, value=float(default_time), step=0.1)
                 
-                if st.button("recording the stick"):
+                if st.button("貼り付けを記録"):
                     start_x, start_y = parse_coordinates(start_coord)
                     end_x, end_y = parse_coordinates(end_coord)
                     
@@ -543,7 +543,7 @@ def main():
                     
                     action = {
                         'action_id': len(st.session_state.actions),
-                        'type': 'stick/ put',
+                        'type': '貼る',
                         'start_x': start_x,
                         'start_y': start_y,
                         'end_x': end_x,
@@ -580,17 +580,17 @@ def main():
                     col_text, col_delete = st.columns([4, 1])
                     
                     with col_text:
-                        if action['type'] == 'write':
+                        if action['type'] == '書く':
                             st.write(f"{i+1}. 文字「{action['content']}」({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) [{action['direction']}] (Time: {action.get('time', action['timestamp'])})")
-                        elif action['type'] == 'erase':
+                        elif action['type'] == '消す（よける）':
                             st.write(f"{i+1}. 消去 (Action ID: {action['target_action_id']}) (Time: {action.get('time', action['timestamp'])})")
-                        elif action['type'] == 'draw the line':
+                        elif action['type'] == '線を引く':
                             st.write(f"{i+1}. 線 ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
-                        elif action['type'] == 'surround':
+                        elif action['type'] == '囲う':
                             st.write(f"{i+1}. 囲み ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
-                        elif action['type'] == 'relate':
+                        elif action['type'] == '関連付ける':
                             st.write(f"{i+1}. 関連付け ({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
-                        elif action['type'] == 'stick/ put':
+                        elif action['type'] == '貼る':
                             st.write(f"{i+1}. 貼り付け「{action['label']}」({action['start_x']},{action['start_y']})→({action['end_x']},{action['end_y']}) (Time: {action.get('time', action['timestamp'])})")
                     
                     with col_delete:
@@ -627,7 +627,7 @@ def main():
                                 st.rerun()
     
     with tab2:
-        st.header("Reproducting BW")
+        st.header("板書再現")
         
         if not st.session_state.actions:
             st.warning("記録されたアクションがありません。まず板書記録タブでアクションを記録してください。")
@@ -640,23 +640,23 @@ def main():
             col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
-                if st.button("▶️ play"):
+                if st.button("▶️ 再生"):
                     st.session_state.is_playing = True
             
             with col2:
-                if st.button("⏸️ pause"):
+                if st.button("⏸️ 一時停止"):
                     st.session_state.is_playing = False
             
             with col3:
-                if st.button("⏹️ stop"):
+                if st.button("⏹️ 停止"):
                     st.session_state.is_playing = False
                     st.session_state.current_time = 0
             
             with col4:
-                st.session_state.playback_speed = st.selectbox("play speed", [0.5, 1.0, 1.5, 2.0], index=1)
+                st.session_state.playback_speed = st.selectbox("再生速度", [0.5, 1.0, 1.5, 2.0], index=1)
             
             with col5:
-                if st.button("🔄 reset"):
+                if st.button("🔄 リセット"):
                     st.session_state.current_time = 0
                     st.session_state.is_playing = False
             
@@ -669,7 +669,7 @@ def main():
             st.components.v1.html(blackboard_html, height=GRID_HEIGHT * CELL_SIZE + 100)
             
             # タイムライン表示
-            st.subheader("timeline")
+            st.subheader("タイムライン")
             timeline_data = []
             for i, action in enumerate(st.session_state.actions):
                 timeline_data.append({
@@ -854,7 +854,7 @@ def main():
         col1, col2 = st.columns(2)
     
         with col1:
-            st.subheader("💾 save the data")
+            st.subheader("💾 データ保存")
             if st.session_state.actions:
                 data_to_save = {
                     'actions': st.session_state.actions,
